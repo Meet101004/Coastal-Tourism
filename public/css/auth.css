@@ -1,0 +1,332 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 30px;
+}
+
+/* Full-Screen Background Image (No Blur) */
+.bg-image {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('/images/beach-login-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    z-index: -2;
+}
+
+/* Keep overlay for text readability */
+.bg-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0) 100%); /* Adjusted gradient */
+    z-index: -1;
+}
+
+/* Welcome Text on the Left */
+.welcome-text-container {
+    position: absolute; /* Changed from fixed */
+    left: 5%;
+    top: 50%;
+    transform: translateY(-50%);
+    color: white;
+    max-width: 40%;
+    z-index: 2;
+    padding: 20px;
+}
+
+.welcome-text-container h1 {
+    font-size: 3.5em;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.welcome-text-container p {
+    font-size: 1.2em;
+    line-height: 1.6;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Right-Aligned Auth Box (Not Full Height) */
+.auth-container {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(15px); /* Keep the box blur */
+    -webkit-backdrop-filter: blur(15px);
+    padding: 30px 40px;
+    width: 100%;
+    max-width: 430px;
+    border-radius: 15px; /* Slightly less round */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25),
+                0 0 50px rgba(72, 163, 255, 0.15); /* Adjusted glow */
+    color: #ffffff;
+    animation: fadeIn 1s ease-out;
+    margin-right: 5%;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.auth-header {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.auth-header h2 {
+    font-size: 2em;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.auth-header p {
+    font-size: 0.95em;
+    color: #e0e0e0;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.form-group label {
+    display: block;
+    text-align: left;
+    margin-bottom: 5px;
+    font-size: 0.8em;
+    font-weight: 500;
+    color: #f0f0f0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.input-field-container {
+    position: relative;
+}
+
+.input-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9em;
+    pointer-events: none;
+}
+
+.input-field {
+    width: 100%;
+    padding: 10px 10px 10px 35px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    color: white;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: #48A3FF;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 10px rgba(72, 163, 255, 0.2);
+}
+
+.input-field::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.95em;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 11px;
+    background: linear-gradient(90deg, #48A3FF, #007bff);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 15px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+}
+
+.submit-btn:hover {
+    background: linear-gradient(90deg, #007bff, #48A3FF);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+}
+
+.submit-btn:active {
+    transform: translateY(0px);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 15px;
+    color: #e0e0e0;
+    font-size: 0.85em;
+}
+
+.auth-footer a {
+    color: #FFD700;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-footer a:hover {
+    color: #ffec8b;
+    text-decoration: underline;
+}
+
+.error {
+    background: rgba(255, 87, 87, 0.15);
+    color: #ffcdd2;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    text-align: left;
+    border: 1px solid rgba(255, 87, 87, 0.2);
+    font-size: 0.8em;
+}
+
+/* Responsive Design */
+@media (max-width: 900px) { /* Adjust breakpoint for when welcome text disappears */
+    .welcome-text-container {
+        display: none; /* Hide welcome text on smaller screens */
+    }
+    body {
+        justify-content: center; /* Center the box when text is gone */
+    }
+    .auth-container {
+        margin-right: 0; /* Remove margin when centered */
+    }
+}
+
+@media (max-width: 480px) {
+     body {
+        padding: 15px;
+        align-items: center;
+     }
+     .auth-container {
+        width: 100%;
+        max-width: 430px;
+        padding: 25px 20px;
+        margin: 0;
+    }
+     .auth-header h2 {
+        font-size: 1.6em;
+    }
+     .input-field, .input-field::placeholder {
+        font-size: 0.9em;
+     }
+     .submit-btn {
+        padding: 10px;
+        font-size: 0.95em;
+     }
+}
+
+/* Prevent body scroll if auth box fits viewport */
+@media (min-height: 650px) { /* Adjust this height based on testing */
+    body {
+        overflow: hidden;
+    }
+}
+
+/* --- Validation Styles --- */
+
+/* Style for input fields with errors */
+.input-error {
+    border-color: #ff8a80 !important; /* Light red border */
+    background: rgba(255, 87, 87, 0.1) !important; /* Slightly red background */
+}
+
+/* Style for error messages below fields */
+.field-error {
+    color: #ffcdd2; /* Light red text */
+    font-size: 0.8em;
+    margin-top: 4px;
+    text-align: left;
+}
+
+/* General form error box */
+.form-error {
+    background: rgba(255, 87, 87, 0.2);
+    color: #ffcdd2;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    text-align: left; /* Align text left */
+    border: 1px solid rgba(255, 87, 87, 0.3);
+    font-size: 0.9em;
+}
+
+/* Password criteria display */
+.password-criteria {
+    color: #bdbdbd; /* Light gray for hints */
+    font-size: 0.8em;
+    margin-top: 5px;
+    text-align: left;
+    line-height: 1.4;
+}
+
+.password-criteria .criteria-invalid {
+    color: #ffcdd2; /* Red for unmet criteria */
+}
+
+.password-criteria .criteria-valid {
+    color: #c8e6c9; /* Green for met criteria */
+    text-decoration: line-through; /* Optional: strike-through met criteria */
+}
+
+/* Password toggle icon */
+.toggle-password {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    font-size: 1em;
+    z-index: 3;
+}
+.toggle-password:hover {
+    color: #ffffff;
+}
+
+/* --- Add Success Message Style --- */
+.success-message {
+    background: rgba(76, 175, 80, 0.15); /* Light green background */
+    color: #c8e6c9; /* Light green text */
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    text-align: left;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    font-size: 0.9em;
+}
+
+/* --- Input container relative positioning --- */
+/* Make sure this exists if not already added */
+.input-field-container {
+    position: relative;
+}

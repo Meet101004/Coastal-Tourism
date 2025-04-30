@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Account - Beach Weather</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/css/auth.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="bg-image"></div>
+    <div class="bg-overlay"></div>
+
+    <!-- Optional Welcome Text on the Left -->
+    <div class="welcome-text-container">
+        <h1>Join the Wave!</h1>
+        <p>Create your account to unlock personalized beach forecasts, save favorite spots, and more.</p>
+    </div>
+
+    <div class="auth-container">
+        <div class="auth-header">
+            <h2>Create Your Account</h2>
+            <p>Start your beach adventure today</p>
+        </div>
+
+        <!-- Display General Form Errors (like DB errors) -->
+        <% if (typeof errors !== 'undefined' && errors.some(e => e.field === 'form')) { %>
+            <div class="error form-error">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i>
+                <%= errors.find(e => e.field === 'form').message %>
+            </div>
+        <% } %>
+
+        <form action="/register" method="POST" id="register-form" novalidate>
+            <div class="form-group">
+                <label for="username">Username</label>
+                 <div class="input-field-container">
+                    <i class="fas fa-user input-icon"></i>
+                    <input type="text" id="username" name="username" required
+                           placeholder="Choose a username"
+                           class="input-field <%= (typeof errors !== 'undefined' && errors.some(e => e.field === 'username')) ? 'input-error' : '' %>"
+                           value="<%= typeof username !== 'undefined' ? username : '' %>">
+                </div>
+                <% if (typeof errors !== 'undefined' && errors.some(e => e.field === 'username')) { %>
+                    <div class="field-error"><%= errors.find(e => e.field === 'username').message %></div>
+                <% } %>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                 <div class="input-field-container">
+                    <i class="fas fa-envelope input-icon"></i>
+                    <input type="email" id="email" name="email" required
+                           placeholder="Enter your email"
+                           class="input-field <%= (typeof errors !== 'undefined' && errors.some(e => e.field === 'email')) ? 'input-error' : '' %>"
+                            value="<%= typeof email !== 'undefined' ? email : '' %>">
+                 </div>
+                <% if (typeof errors !== 'undefined' && errors.some(e => e.field === 'email')) { %>
+                    <div class="field-error"><%= errors.find(e => e.field === 'email').message %></div>
+                <% } %>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-field-container">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="password" name="password" required
+                           placeholder="Create a password"
+                            class="input-field <%= (typeof errors !== 'undefined' && errors.some(e => e.field === 'password')) ? 'input-error' : '' %>">
+                    <i class="fas fa-eye toggle-password"></i>
+                </div>
+                <div id="password-feedback" class="password-criteria">
+                    Password must be at least 8 characters long.
+                </div>
+                <% if (typeof errors !== 'undefined' && errors.some(e => e.field === 'password')) { %>
+                    <div class="field-error"><%= errors.find(e => e.field === 'password').message %></div>
+                <% } %>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                 <div class="input-field-container">
+                     <i class="fas fa-check-circle input-icon"></i>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required
+                           placeholder="Confirm your password"
+                            class="input-field <%= (typeof errors !== 'undefined' && errors.some(e => e.field === 'confirmPassword')) ? 'input-error' : '' %>">
+                     <i class="fas fa-eye toggle-password"></i>
+                 </div>
+                 <div id="confirmPassword-feedback" class="field-error"></div>
+                 <% if (typeof errors !== 'undefined' && errors.some(e => e.field === 'confirmPassword')) { %>
+                     <div class="field-error"><%= errors.find(e => e.field === 'confirmPassword').message %></div>
+                 <% } %>
+            </div>
+
+            <button type="submit" class="submit-btn">
+                Create Account <i class="fas fa-user-plus" style="margin-left: 5px;"></i>
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/login">Sign In</a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('register-form');
+        const usernameInput = document.getElementById('username');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const passwordFeedback = document.getElementById('password-feedback');
+        const confirmPasswordFeedback = document.getElementById('confirmPassword-feedback');
+        const togglePasswordIcons = document.querySelectorAll('.toggle-password');
+
+        // Password toggle functionality
+        togglePasswordIcons.forEach(icon => {
+            icon.addEventListener('click', function() {
+                const input = this.previousElementSibling;
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+                this.classList.toggle('fa-eye');
+                this.classList.toggle('fa-eye-slash');
+            });
+        });
+
+        // Username validation
+        function validateUsername() {
+            const username = usernameInput.value.trim();
+            let isValid = true;
+            let errorMessage = '';
+
+            if (!username) {
+                errorMessage = 'Username is required';
+                isValid = false;
+            } else if (username.length < 3) {
+                errorMessage = 'Username must be at least 3 characters long';
+                isValid = false;
+            } else if (username.length > 30) {
+                errorMessage = 'Username cannot exceed 30 characters';
+                isValid = false;
+            } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                errorMessage = 'Username can only contain letters, numbers, and underscores';
+                isValid = false;
+            }
+
+            updateFieldError(usernameInput, errorMessage);
+            return isValid;
+        }
+
+        // Email validation
+        function validateEmail() {
+            const email = emailInput.value.trim();
+            let isValid = true;
+            let errorMessage = '';
+
+            if (!email) {
+                errorMessage = 'Email is required';
+                isValid = false;
+            } else if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+                errorMessage = 'Please enter a valid email address';
+                isValid = false;
+            }
+
+            updateFieldError(emailInput, errorMessage);
+            return isValid;
+        }
+
+        // Password validation
+        function validatePassword() {
+            const password = passwordInput.value;
+            let isValid = true;
+            let feedbackMessages = [];
+
+            if (!password) {
+                feedbackMessages.push('Password is required');
+                isValid = false;
+            } else {
+                if (password.length < 8) {
+                    feedbackMessages.push('At least 8 characters long');
+                    isValid = false;
+                } else {
+                    feedbackMessages.push('✓ At least 8 characters long');
+                }
+
+                if (!/[A-Z]/.test(password)) {
+                    feedbackMessages.push('At least one uppercase letter');
+                    isValid = false;
+                } else {
+                    feedbackMessages.push('✓ At least one uppercase letter');
+                }
+
+                if (!/[a-z]/.test(password)) {
+                    feedbackMessages.push('At least one lowercase letter');
+                    isValid = false;
+                } else {
+                    feedbackMessages.push('✓ At least one lowercase letter');
+                }
+
+                if (!/\d/.test(password)) {
+                    feedbackMessages.push('At least one number');
+                    isValid = false;
+                } else {
+                    feedbackMessages.push('✓ At least one number');
+                }
+
+                if (!/[@$!%*?&]/.test(password)) {
+                    feedbackMessages.push('At least one special character (@$!%*?&)');
+                    isValid = false;
+                } else {
+                    feedbackMessages.push('✓ At least one special character');
+                }
+            }
+
+            passwordFeedback.innerHTML = feedbackMessages.map(msg => {
+                if (msg.startsWith('✓')) {
+                    return `<span class="criteria-valid">${msg}</span>`;
+                } else {
+                    return `<span class="criteria-invalid">${msg}</span>`;
+                }
+            }).join('<br>');
+
+            if (!isValid) {
+                passwordInput.classList.add('input-error');
+            } else {
+                passwordInput.classList.remove('input-error');
+            }
+
+            return isValid;
+        }
+
+        // Confirm password validation
+        function validateConfirmPassword() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            let isValid = true;
+            let errorMessage = '';
+
+            if (!confirmPassword) {
+                errorMessage = 'Please confirm your password';
+                isValid = false;
+            } else if (password !== confirmPassword) {
+                errorMessage = 'Passwords do not match';
+                isValid = false;
+            }
+
+            updateFieldError(confirmPasswordInput, errorMessage);
+            return isValid;
+        }
+
+        // Helper function to update field errors
+        function updateFieldError(input, message) {
+            const formGroup = input.parentNode.parentNode;
+            let errorDiv = formGroup.querySelector('.field-error');
+            
+            if (message) {
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'field-error';
+                    formGroup.appendChild(errorDiv);
+                }
+                errorDiv.textContent = message;
+                input.classList.add('input-error');
+            } else {
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+                input.classList.remove('input-error');
+            }
+        }
+
+        // Real-time validation
+        usernameInput.addEventListener('input', validateUsername);
+        emailInput.addEventListener('input', validateEmail);
+        passwordInput.addEventListener('input', validatePassword);
+        confirmPasswordInput.addEventListener('input', validateConfirmPassword);
+
+        // Form submission validation
+        form.addEventListener('submit', function(event) {
+            const isUsernameValid = validateUsername();
+            const isEmailValid = validateEmail();
+            const isPasswordValid = validatePassword();
+            const isConfirmPasswordValid = validateConfirmPassword();
+
+            if (!isUsernameValid || !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) {
+                event.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>

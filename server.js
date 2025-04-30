@@ -1,0 +1,565 @@
+import express from "express";
+import env from "dotenv";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import axios from "axios";
+import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import Beach from "./models/Beach.js"; // Import Model
+import bcrypt from "bcrypt";
+import session from "express-session";
+import User from "./models/User.js";
+import stripe from 'stripe';
+import Hotel from "./models/Hotel.js";
+import fs from 'fs';
+import https from 'https';
+
+
+
+// Config
+env.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+const port = process.env.PORT || 3443;
+
+// Middleware
+app.use(express.static(path.join(__dirname, 'public')));
+console.log('Static directory:', path.join(__dirname, 'public'));
+app.use(bodyParser.urlencoded({ extended: true }))
+app.set('view engine', 'ejs');
+
+// Add session middleware
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
+// Add authentication middleware
+const requireAuth = (req, res, next) => {
+    if (req.session.userId) {
+        next();
+    } else {
+        res.redirect('/login');
+    }
+};
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI || 'mongodb://mongodb:27017/weather_app', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => {
+    console.log("✅ Connected to MongoDB");
+}).catch((err) => {
+    console.log("❌ MongoDB Connection Error: ", err);
+});
+
+// Import custom modules
+import { weather_owm } from "./modules/weather_owm.mjs";
+import tomorrow_weather from "./modules/tomorrow_weather.mjs";
+import aqi_test from "./modules/aqi_test.mjs";
+import marine from "./modules/marine.mjs";
+
+// Variables
+let lat, lon, place;
+export let weather_data = {
+    city_name: "",
+    weather_icon: "",
+    aqi: {
+        aqi: "",
+        category: ""
+    },
+    temp: "",
+    feels_like: "",
+    wind_speed: "",
+    wind_dir: "",
+    visibility: "",
+    rain: "",
+    humid: "",
+    uvi: "",
+    weather_desc: "",
+    ocean: {
+        swell: "",
+        wave: "",
+        m_hazard: "Low"
+    },
+    beach_desc: ""
+};
+let error = "";
+
+// Initialize stripe
+const stripeClient = new stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2023-10-16' // Use the latest API version
+});
+
+// Routes
+app.get('/register', (req, res) => {
+    res.render('register');
+});
+
+app.post('/register', async (req, res) => {
+    const { username, email, password, confirmPassword } = req.body;
+    let errors = [];
+
+    // Input validation
+    if (!username || !username.trim()) {
+        errors.push({ field: 'username', message: 'Username is required' });
+    } else if (username.length < 3) {
+        errors.push({ field: 'username', message: 'Username must be at least 3 characters long' });
+    } else if (username.length > 30) {
+        errors.push({ field: 'username', message: 'Username cannot exceed 30 characters' });
+    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        errors.push({ field: 'username', message: 'Username can only contain letters, numbers, and underscores' });
+    }
+
+    if (!email || !email.trim()) {
+        errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+        errors.push({ field: 'email', message: 'Please enter a valid email address' });
+    }
+
+    if (!password) {
+        errors.push({ field: 'password', message: 'Password is required' });
+    } else if (password.length < 8) {
+        errors.push({ field: 'password', message: 'Password must be at least 8 characters long' });
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password)) {
+        errors.push({ field: 'password', message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character' });
+    }
+
+    if (!confirmPassword) {
+        errors.push({ field: 'confirmPassword', message: 'Please confirm your password' });
+    } else if (password !== confirmPassword) {
+        errors.push({ field: 'confirmPassword', message: 'Passwords do not match' });
+    }
+
+    // If there are validation errors, return them immediately
+    if (errors.length > 0) {
+        return res.render('register', {
+            errors: errors,
+            username: username || '',
+            email: email || ''
+        });
+    }
+
+    try {
+        // Check if username or email already exists
+        const existingUser = await User.findOne({ 
+            $or: [
+                { email: email.toLowerCase() },
+                { username: new RegExp('^' + username + '$', 'i') }
+            ]
+        });
+
+        if (existingUser) {
+            if (existingUser.email === email.toLowerCase()) {
+                errors.push({ field: 'email', message: 'Email already exists. Please use a different email or log in.' });
+            }
+            if (existingUser.username.toLowerCase() === username.toLowerCase()) {
+                errors.push({ field: 'username', message: 'Username is already taken. Please choose another.' });
+            }
+            return res.render('register', {
+                errors: errors,
+                username: username,
+                email: email
+            });
+        }
+
+        // If validation passes, hash password and create user
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            username: username.trim(),
+            email: email.toLowerCase().trim(),
+            password: hashedPassword
+        });
+
+        await newUser.save();
+        console.log("User registered successfully:", newUser.username);
+        res.redirect('/login?registered=success');
+
+    } catch (error) {
+        console.error("Registration error:", error);
+        errors.push({ field: 'form', message: 'Registration failed. Please try again later.' });
+        res.render('register', {
+            errors: errors,
+            username: username,
+            email: email
+        });
+    }
+});
+
+app.get('/login', (req, res) => {
+    let successMessage = null;
+    if (req.query.registered === 'success') {
+        successMessage = "Registration successful! Please log in.";
+    }
+    res.render('login', { errors: null, identifier: '', successMessage: successMessage }); // Pass empty identifier initially
+});
+
+app.post('/login', async (req, res) => {
+    const { identifier, password } = req.body;
+    let errors = [];
+
+    // Input validation
+    if (!identifier || !identifier.trim()) {
+        errors.push({ field: 'identifier', message: 'Please enter your username or email' });
+    }
+    if (!password) {
+        errors.push({ field: 'password', message: 'Please enter your password' });
+    }
+
+    // If there are validation errors, return them immediately
+    if (errors.length > 0) {
+        return res.render('login', { 
+            errors: errors, 
+            identifier: identifier || '', 
+            successMessage: null 
+        });
+    }
+
+    try {
+        // Find user by either email or username (case-insensitive for username check)
+        const user = await User.findOne({
+            $or: [
+                { email: identifier.toLowerCase() }, // Convert to lowercase for email
+                { username: new RegExp('^' + identifier + '$', 'i') } // Case-insensitive username match
+            ]
+        });
+
+        if (!user) {
+            errors.push({ field: 'form', message: 'Invalid credentials. Please check your username/email and password.' });
+            return res.render('login', { 
+                errors: errors, 
+                identifier: identifier, 
+                successMessage: null 
+            });
+        }
+
+        // Check password
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            errors.push({ field: 'form', message: 'Invalid credentials. Please check your username/email and password.' });
+            return res.render('login', { 
+                errors: errors, 
+                identifier: identifier, 
+                successMessage: null 
+            });
+        }
+
+        // --- Login Successful ---
+        req.session.userId = user._id; // Store user ID in session
+        console.log(`User logged in: ${user.username} (ID: ${user._id})`);
+
+        // Regenerate session to prevent fixation attacks
+        req.session.regenerate((err) => {
+            if (err) {
+                console.error("Session regeneration error:", err);
+                errors.push({ field: 'form', message: 'Login failed due to a server error. Please try again.' });
+                return res.render('login', { 
+                    errors: errors, 
+                    identifier: identifier, 
+                    successMessage: null 
+                });
+            }
+            // Store user ID again after regeneration
+            req.session.userId = user._id;
+            res.redirect('/'); // Redirect to the main page
+        });
+
+    } catch (error) {
+        console.error("Login error:", error);
+        errors.push({ field: 'form', message: 'An error occurred during login. Please try again.' });
+        res.render('login', { 
+            errors: errors, 
+            identifier: identifier, 
+            successMessage: null 
+        });
+    }
+});
+
+// 
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.redirect('/');
+        }
+        res.clearCookie('connect.sid');
+        res.redirect('/login');
+    });
+});
+app.use((req, res, next) => {
+    res.locals.user = req.session.userId ? { id: req.session.userId } : null;
+    next();
+});
+
+
+app.get('/', requireAuth, (req, res) => {
+    res.render('index.ejs', { error: error });
+});
+
+app.post('/find', requireAuth, async (req, res) => {
+    place = req.body['place'];
+
+    try {
+        const location = await axios.get(`http://api.openweathermap.org/geo/1.0/direct?q=${place}&limit=5&appid=${process.env.OWM_API}`);
+        lat = location.data[0].lat;
+        lon = location.data[0].lon;
+        place = location.data[0].name;
+        weather_data.city_name = place;
+    } catch (err) {
+        console.log("Location Error:", err);
+        return res.redirect('/');
+    }
+await weather_owm(lat, lon, weather_data);
+await tomorrow_weather(lat, lon, weather_data);
+await aqi_test(lat, lon, weather_data);
+await marine(lat, lon, weather_data);
+
+
+    if (weather_data.ocean.wave === 'nullm') {
+        error = `The given city does not have a beach.`;
+        res.redirect("/");
+    } else {
+        try {
+            const newBeach = new Beach({
+                ...weather_data,
+                lat,
+                lon
+            });
+            await newBeach.save();
+            console.log("✅ Weather data saved to MongoDB");
+        } catch (err) {
+            console.log("❌ Error saving to MongoDB:", err);
+        }
+        res.render('map.ejs', { weather: weather_data, lat: lat, lon: lon, place: place });
+    }
+});
+
+// Get hotels near a beach
+app.get('/hotels', async (req, res) => {
+    try {
+        res.render('hotels', { 
+            lat: null, 
+            lon: null, 
+            beach: null,
+            error: null
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).render('hotels', { error: 'Failed to load hotels' });
+    }
+});
+
+app.get('/hotels/:lat/:lon', async (req, res) => {
+    try {
+        const { lat, lon } = req.params;
+        
+        console.log(`Searching for hotels near lat: ${lat}, lon: ${lon}`); // Debug log
+
+        const response = await axios.get('https://api.geoapify.com/v2/places', {
+            params: {
+                categories: 'accommodation.hotel,accommodation.motel',
+                filter: `circle:${lon},${lat},5000`, // 5km radius
+                bias: `proximity:${lon},${lat}`,
+                limit: 20,
+                apiKey: process.env.GEOAPIFY_API_KEY
+            }
+        });
+
+        console.log('API Response:', response.data); // Debug log
+
+        if (!response.data.features) {
+            console.log('No features in response');
+            return res.json([]);
+        }
+
+        const hotels = response.data.features.map(place => ({
+            name: place.properties.name || 'Unnamed Location',
+            address: place.properties.formatted || 'No address available',
+            distance: place.properties.distance || 0,
+            coordinates: [place.properties.lon, place.properties.lat],
+            _id: place.properties.place_id // Using place_id as _id
+        }));
+
+        console.log(`Found ${hotels.length} hotels`); // Debug log
+        res.json(hotels);
+    } catch (error) {
+        console.error('Error fetching hotels:', error);
+        res.status(500).json({ error: 'Failed to fetch hotels', details: error.message });
+    }
+});
+
+// Get hotel details
+app.get('/hotel/:id', async (req, res) => {
+    try {
+        const hotel = await Hotel.findById(req.id)
+            .populate('reviews.user', 'username');
+        res.json(hotel);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch hotel details' });
+    }
+});
+
+// Add review
+app.post('/hotel/:id/review', requireAuth, async (req, res) => {
+    try {
+        const { rating, comment } = req.body;
+        const hotel = await Hotel.findById(req.params.id);
+        
+        hotel.reviews.push({
+            user: req.session.userId,
+            rating,
+            comment
+        });
+        
+        await hotel.save();
+        res.json(hotel);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to add review' });
+    }
+});
+
+// Book hotel
+app.post('/hotel/:id/book', requireAuth, async (req, res) => {
+    try {
+        const { checkIn, checkOut, roomType, guests } = req.body;
+        const hotel = await Hotel.findById(req.params.id);
+        
+        // Find room and calculate price
+        const room = hotel.rooms.find(r => r.type === roomType);
+        if (!room || room.available < 1) {
+            return res.status(400).json({ error: 'Room not available' });
+        }
+
+        const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24));
+        const totalPrice = room.price * nights;
+
+        // Create Stripe payment intent
+        const paymentIntent = await stripeClient.paymentIntents.create({
+            amount: totalPrice * 100, // Stripe uses cents
+            currency: 'usd'
+        });
+
+        // Create booking
+        const booking = {
+            user: req.session.userId,
+            checkIn: new Date(checkIn),
+            checkOut: new Date(checkOut),
+            roomType,
+            guests,
+            totalPrice,
+            paymentId: paymentIntent.id
+        };
+
+        hotel.bookings.push(booking);
+        room.available -= 1;
+        await hotel.save();
+
+        res.json({
+            booking,
+            clientSecret: paymentIntent.client_secret
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to book hotel' });
+    }
+});
+
+// Add this route to handle hotels near a specific beach
+app.get('/hotels/:lat/:lon/:beach', async (req, res) => {
+    try {
+        const { lat, lon, beach } = req.params;
+        res.render('hotels', { 
+            lat, 
+            lon, 
+            beach: decodeURIComponent(beach),
+            error: null 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).render('hotels', { error: 'Failed to load hotels' });
+    }
+});
+
+// Add this near the top of your server.js, after other middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!', details: err.message });
+});
+
+app.get('/test-static', (req, res) => {
+    res.send(`
+        <html>
+            <body>
+                <h1>Testing Static Files</h1>
+                <img src="/public/images/beach-login-bg.jpg" alt="Beach" style="max-width: 500px;">
+            </body>
+        </html>
+    `);
+});
+
+// Add this to check if static files are being served
+app.get('/test', (req, res) => {
+    res.send(`
+        <img src="/images/beach-login-bg.jpg" alt="test" />
+    `);
+});
+
+// Add this route to test image serving
+app.get('/check-image', (req, res) => {
+    const imagePath = path.join(__dirname, 'public/images/beach-login-bg.jpg');
+    console.log('Checking image path:', imagePath);
+    if (fs.existsSync(imagePath)) {
+        res.send('Image exists at: ' + imagePath);
+    } else {
+        res.send('Image not found at: ' + imagePath);
+    }
+});
+
+// Add this middleware to set user in locals
+app.use((req, res, next) => {
+    res.locals.user = req.session.userId ? { id: req.session.userId } : null;
+    next();
+});
+
+// Production vs Development certificate handling
+let options;
+if (process.env.NODE_ENV === 'production') {
+  // In production, use Let's Encrypt or other CA certificates
+  options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/yourdomain.com/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/yourdomain.com/fullchain.pem')
+  };
+} else {
+  // In development, use self-signed certificates
+  options = {
+    key: fs.readFileSync(path.join(__dirname, 'certificates', 'key.pem')),
+    cert: fs.readFileSync(path.join(__dirname, 'certificates', 'cert.pem'))
+  };
+}
+// Beach Safety route
+app.get('/safety', requireAuth, (req, res) => {
+    res.render('safety', { 
+        user: req.session.userId ? { id: req.session.userId } : null,
+        weather: weather_data
+    });
+});
+
+// Create HTTPS server
+const server = https.createServer(options, app);
+
+// Server start
+server.listen(port, () => {
+  console.log(`🔒 Secure server listening on https://localhost:${port}`);
+});
+
+// Optional: Redirect HTTP to HTTPS
+import http from 'http';
+const httpPort = 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(301, { "Location": `https://localhost:${port}${req.url}` });
+  res.end();
+}).listen(httpPort, () => {
+  console.log(`🔄 HTTP server redirecting from http://localhost:${httpPort} to HTTPS`);
+});
